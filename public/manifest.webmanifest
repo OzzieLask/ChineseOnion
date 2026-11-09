@@ -1,0 +1,9 @@
+{
+  "name": "白人Onion",
+  "short_name": "Onion",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#e8edee",
+  "theme_color": "#3d7f38",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

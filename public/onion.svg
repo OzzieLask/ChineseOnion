@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-45 0 261 261">
+  <!-- leaves -->
+  <path d="M97 106 L106 46 L126 2 L149 12 L124 36 L110 72 L104 106 Z" fill="#4e9b49"/>
+  <path d="M124 36 L149 12 L152 62 L167 160 L157 150 L139 74 Z" fill="#3d7f38"/>
+  <path d="M99 102 L107 58 L112 60 L104 102 Z" fill="#91c78e"/>
+  <!-- neck -->
+  <path d="M93 98 L104 98 L109 122 L88 122 Z" fill="#f0f6f8"/>
+  <path d="M100 98 L104 98 L109 122 L102 122 Z" fill="#cfc9d1"/>
+  <!-- bulb -->
+  <circle cx="78" cy="186" r="72" fill="#f0f6f8"/>
+  <path d="M110 122 A72 72 0 0 1 64 256.6 L92 248 L120 214 L126 166 Z" fill="#cfc9d1"/>
+  <path d="M70 132 L56 176 L49 232 L60 188 Z" fill="#d9d9d9"/>
+</svg>
