@@ -15,6 +15,8 @@ export function blankCard(): Card {
     audio: null,
     image: null,
     drawing: null,
+    tts: null,
+    ttsKey: null,
     srs: newSrs(now),
     createdAt: now,
     updatedAt: now,
@@ -44,6 +46,8 @@ export function normalizeCard(raw: unknown): Card | null {
     audio: str(r.audio) || null,
     image: str(r.image) || null,
     drawing: str(r.drawing) || null,
+    tts: str(r.tts) || null,
+    ttsKey: str(r.ttsKey) || null,
     srs: {
       due: num(s.due, base.srs.due),
       interval: num(s.interval, 0),
@@ -56,6 +60,11 @@ export function normalizeCard(raw: unknown): Card | null {
     updatedAt: num(r.updatedAt, base.updatedAt),
   };
 }
+
+export const ttsKeyOf = (c: Pick<Card, 'hanzi' | 'pinyin'>) => `${c.hanzi.trim()}|${c.pinyin.trim()}`;
+
+/** Card has Chinese text whose generated audio is missing or out of date. */
+export const needsTts = (c: Card) => /\p{Script=Han}/u.test(c.hanzi) && c.ttsKey !== ttsKeyOf(c);
 
 export function sampleCards(): Card[] {
   const rows: [string, string, string[]][] = [

@@ -2,6 +2,13 @@ import type { Card } from '../types';
 
 let current: HTMLAudioElement | null = null;
 
+export function playUrl(url: string): Promise<void> {
+  current?.pause();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  current = new Audio(url);
+  return current.play().catch(() => {});
+}
+
 /**
  * Prefer Mainland Mandarin (zh-CN), never Cantonese (zh-HK / yue),
  * and only fall back to Taiwan Mandarin (zh-TW) if nothing else exists.
@@ -28,20 +35,26 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   speechSynthesis.addEventListener?.('voiceschanged', () => speechSynthesis.getVoices());
 }
 
-/** Play the card's recording, or fall back to the browser's Chinese voice. */
-export function speak(card: Pick<Card, 'audio' | 'hanzi'>) {
+/** Browser voice: last resort when no recorded or generated audio exists. */
+export function speakText(text: string) {
   current?.pause();
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
-  if (card.audio) {
-    current = new Audio(card.audio);
-    current.play().catch(() => {});
-    return;
-  }
-  if (!card.hanzi || !('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(card.hanzi);
+  if (!text || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
   u.lang = 'zh-CN';
   u.rate = 0.85;
   const voice = mandarinVoice();
   if (voice) u.voice = voice;
   speechSynthesis.speak(u);
 }
+
+/** Your recording > generated neural voice > browser voice. */
+export function speak(card: Pick<Card, 'audio' | 'tts' | 'hanzi'>) {
+  const url = card.audio ?? card.tts;
+  if (url) playUrl(url);
+  else speakText(card.hanzi);
+}
+
+export type AudioSource = 'recording' | 'neural' | 'browser';
+export const audioSource = (c: Pick<Card, 'audio' | 'tts'>): AudioSource =>
+  c.audio ? 'recording' : c.tts ? 'neural' : 'browser';

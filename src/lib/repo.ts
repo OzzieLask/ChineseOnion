@@ -20,6 +20,15 @@ export interface Repo {
 
 const KEY = 'onion.cards';
 
+/** Cards saved in this browser by local mode (still readable after switching to cloud). */
+export async function readLocalCards(): Promise<Card[]> {
+  try {
+    return ((await get<Card[]>(KEY)) ?? []) as Card[];
+  } catch {
+    return [];
+  }
+}
+
 function localRepo(): Repo {
   const all = async () => ((await get<Card[]>(KEY)) ?? []) as Card[];
   return {
@@ -42,8 +51,38 @@ function localRepo(): Repo {
   };
 }
 
-function cloudRepo(): Repo {
-  const sb: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/** Supabase client in cloud mode, null in local mode. */
+export const sb: SupabaseClient | null = CLOUD ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/**
+ * Pronunciation audio from the `tts` edge function (Azure neural voice).
+ * Card audio needs the owner session; presets ("ma3") are public. Returns a cached mp3 URL.
+ */
+export async function fetchTts(body: { text: string; ph?: string | null } | { preset: string }): Promise<string> {
+  if (!sb) throw new Error('Pronunciation service needs cloud mode');
+  const { data, error } = await sb.functions.invoke<{ url?: string; error?: string }>('tts', { body });
+  if (error) {
+    // Surface the function's own error message when there is one.
+    const ctx = (error as { context?: Response }).context;
+    const detail = ctx && typeof ctx.json === 'function' ? await ctx.json().catch(() => null) : null;
+    throw new Error(detail?.error ?? error.message);
+  }
+  if (!data?.url) throw new Error(data?.error ?? 'No audio returned');
+  return data.url;
+}
+
+const presetCache = new Map<string, Promise<string>>();
+export function presetAudio(id: string): Promise<string> {
+  let p = presetCache.get(id);
+  if (!p) {
+    p = fetchTts({ preset: id });
+    p.catch(() => presetCache.delete(id));
+    presetCache.set(id, p);
+  }
+  return p;
+}
+
+function cloudRepo(sb: SupabaseClient): Repo {
   const isOwnerEmail = (email?: string | null) => !!email && email.toLowerCase() === OWNER_EMAIL.toLowerCase();
   return {
     kind: 'cloud',
@@ -94,4 +133,4 @@ function cloudRepo(): Repo {
   };
 }
 
-export const repo: Repo = CLOUD ? cloudRepo() : localRepo();
+export const repo: Repo = sb ? cloudRepo(sb) : localRepo();

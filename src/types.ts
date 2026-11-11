@@ -28,6 +28,10 @@ export interface Card {
   audio: string | null;
   image: string | null;
   drawing: string | null;
+  /** Generated neural-voice pronunciation (used when there's no recording). */
+  tts: string | null;
+  /** hanzi|pinyin the tts clip was made from, so edits trigger a regenerate. */
+  ttsKey: string | null;
   srs: SrsState;
   createdAt: number;
   updatedAt: number;

@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Card, Prefs, SrsState } from './types';
-import { repo } from './lib/repo';
+import { fetchTts, repo } from './lib/repo';
+import { needsTts, ttsKeyOf } from './lib/cards';
+import { toSapi } from './lib/tones';
 import { newSrs, schedule, type Grade } from './lib/srs';
 import { dataURLToBlob } from './lib/util';
 
@@ -44,6 +46,7 @@ interface Store {
   srsOf: (c: Card) => SrsState;
   saveCard: (c: Card) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
+  generateAllTts: (onProgress?: (done: number, total: number) => void) => Promise<number>;
   grade: (c: Card, g: Grade) => SrsState;
   upload: (b: Blob) => Promise<string>;
   importCards: (cards: Card[], mode: 'merge' | 'replace') => Promise<number>;
@@ -109,16 +112,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [owner, progress],
   );
 
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+
+  const putLocal = (card: Card) =>
+    setCards((cs) => {
+      const i = cs.findIndex((x) => x.id === card.id);
+      return i < 0 ? [...cs, card] : cs.map((x) => (x.id === card.id ? card : x));
+    });
+
+  /** Generate neural-voice audio for one card and store it. Merges onto the latest version of the card. */
+  const generateTts = useCallback(async (id: string) => {
+    const c = cardsRef.current.find((x) => x.id === id);
+    if (!c || !needsTts(c)) return;
+    const key = ttsKeyOf(c);
+    const url = await fetchTts({ text: c.hanzi.trim(), ph: toSapi(c.hanzi, c.pinyin) });
+    const latest = cardsRef.current.find((x) => x.id === id);
+    if (!latest || ttsKeyOf(latest) !== key) return; // edited meanwhile; that save regenerates
+    const next = { ...latest, tts: url, ttsKey: key };
+    await repo.save([next]);
+    putLocal(next);
+  }, []);
+
   const saveCard = useCallback(
     async (c: Card) => {
       const card = { ...c, updatedAt: Date.now() };
       await repo.save([card]);
-      setCards((cs) => {
-        const i = cs.findIndex((x) => x.id === card.id);
-        return i < 0 ? [...cs, card] : cs.map((x) => (x.id === card.id ? card : x));
-      });
+      putLocal(card);
+      cardsRef.current = cardsRef.current.some((x) => x.id === card.id)
+        ? cardsRef.current.map((x) => (x.id === card.id ? card : x))
+        : [...cardsRef.current, card];
+      if (repo.kind === 'cloud' && needsTts(card)) {
+        generateTts(card.id).catch((e) => toast(`Pronunciation not generated: ${e.message ?? e}`, 'err'));
+      }
     },
-    [],
+    [generateTts, toast],
+  );
+
+  /** Fill in pronunciation for every card that lacks it. Returns how many succeeded. */
+  const generateAllTts = useCallback(
+    async (onProgress?: (done: number, total: number) => void) => {
+      const todo = cardsRef.current.filter(needsTts).map((c) => c.id);
+      let ok = 0;
+      for (let i = 0; i < todo.length; i++) {
+        try {
+          await generateTts(todo[i]);
+          ok++;
+        } catch (e) {
+          if (i === 0) throw e; // config problem: stop early with the real error
+        }
+        onProgress?.(i + 1, todo.length);
+      }
+      return ok;
+    },
+    [generateTts],
   );
 
   const deleteCard = useCallback(async (id: string) => {
@@ -203,6 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     srsOf,
     saveCard,
     deleteCard,
+    generateAllTts,
     grade,
     upload,
     importCards,

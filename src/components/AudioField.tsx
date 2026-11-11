@@ -24,7 +24,11 @@ export function AudioField({ value, onChange }: { value: Media; onChange: (m: Me
     setErr(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const r = new MediaRecorder(stream);
+      // mp4/AAC plays on every device (WebM doesn't on older iPhones), so prefer it when supported.
+      const mimeType = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus'].find(
+        (t) => typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(t),
+      );
+      const r = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       const chunks: Blob[] = [];
       r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       r.onstop = () => {
@@ -76,7 +80,7 @@ export function AudioField({ value, onChange }: { value: Media; onChange: (m: Me
             <button type="button" className="btn ghost small" onClick={() => fileRef.current?.click()}>
               <Icon name="upload" size={16} /> Upload
             </button>
-            <span className="muted small">Optional. Without audio, your browser's voice reads the card.</span>
+            <span className="muted small">Optional. Without a recording, a neural Mandarin voice reads the card.</span>
           </motion.div>
         )}
       </AnimatePresence>

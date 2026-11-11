@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { readLocalCards } from '../lib/repo';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../store';
-import { normalizeCard } from '../lib/cards';
+import { needsTts, normalizeCard } from '../lib/cards';
 import { download } from '../lib/util';
 import { APP_NAME } from '../config';
 import type { Card } from '../types';
@@ -9,13 +10,36 @@ import { Icon } from '../components/Icon';
 import { Segmented } from './StudyPage';
 
 export function SettingsPage() {
-  const { prefs, setPrefs, cards, owner, cloud, unlock, lock, importCards, toast } = useStore();
+  const { prefs, setPrefs, cards, owner, cloud, unlock, lock, importCards, toast, generateAllTts } = useStore();
+  const [ttsBusy, setTtsBusy] = useState<[number, number] | null>(null);
+  const missing = cards.filter(needsTts).length;
+  const generateAll = async () => {
+    setTtsBusy([0, missing]);
+    try {
+      const n = await generateAllTts((d, t) => setTtsBusy([d, t]));
+      toast(`Generated pronunciation for ${n} card${n === 1 ? '' : 's'}`);
+    } catch (e) {
+      toast(`Pronunciation failed: ${(e as Error).message}`, 'err');
+    } finally {
+      setTtsBusy(null);
+    }
+  };
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [pinErr, setPinErr] = useState<string | null>(null);
   const [pending, setPending] = useState<Card[] | null>(null);
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Cards left in this browser from local mode that aren't in the shared deck yet.
+  const [localOnly, setLocalOnly] = useState<Card[]>([]);
+  useEffect(() => {
+    if (!cloud) return;
+    readLocalCards().then((list) => {
+      const have = new Set(cards.map((c) => c.id));
+      setLocalOnly(list.map(normalizeCard).filter((c): c is Card => !!c && !have.has(c.id)));
+    });
+  }, [cloud, cards]);
 
   const doUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +142,42 @@ export function SettingsPage() {
       </section>
 
       <section className="panel">
+        <h3 className="label">Pronunciation</h3>
+        {!cloud ? (
+          <p className="muted small">
+            Using your device’s built-in voice. Once Supabase and Azure are connected, every card gets a neural Mandarin
+            recording automatically, read from its pinyin so tones are exact.
+          </p>
+        ) : (
+          <>
+            <p className="muted small">
+              Cards without your own recording get a neural Mandarin voice (Azure), read from the card’s pinyin. It’s made
+              when you save a card and stored, so every device plays the same clip.
+            </p>
+            {owner && (
+              <div className="row gap-s wrap">
+                <button className="btn ghost" disabled={!missing || ttsBusy !== null} onClick={generateAll}>
+                  <Icon name="speaker" size={16} />
+                  {ttsBusy ? `Generating ${ttsBusy[0]}/${ttsBusy[1]}…` : missing ? `Generate for ${missing} card${missing === 1 ? '' : 's'}` : 'All cards have audio'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="panel">
         <h3 className="label">Data</h3>
+        {owner && localOnly.length > 0 && !pending && (
+          <div className="row gap-s wrap local-migrate">
+            <span className="small">
+              <strong>{localOnly.length}</strong> card{localOnly.length === 1 ? '' : 's'} saved in this browser {localOnly.length === 1 ? "isn't" : "aren't"} in the shared deck yet.
+            </span>
+            <button className="btn primary small" onClick={() => (setImportMode('merge'), setPending(localOnly))}>
+              <Icon name="upload" size={14} /> Copy to shared deck
+            </button>
+          </div>
+        )}
         <div className="row gap-s wrap">
           <button className="btn ghost" onClick={doExport} disabled={!cards.length}>
             <Icon name="download" size={16} /> Export JSON ({cards.length})

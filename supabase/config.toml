@@ -1,0 +1,4 @@
+# The tts function checks the caller itself (owner-only for card audio, public for practice
+# syllables), so Supabase's built-in JWT gate is turned off for it.
+[functions.tts]
+verify_jwt = false
