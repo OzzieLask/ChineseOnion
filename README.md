@@ -82,6 +82,8 @@ On your phone: open the site → *Add to Home Screen*.
 ---
 
 ## Notes
+ClaudeCode used heavily
+Tool created to make it easier for me to practice Mandarin (my girlfriends first language!) . Noticed that the best and most effective tools are hard to transfer data ( Anki ) or lack room for adding own notes / topics ( duolingo )
 
 - Handwriting recognition uses Google's public Input Tools endpoint, so it needs a connection.
 - Audio priority on a card: your recording → generated neural voice → the device's voice.
